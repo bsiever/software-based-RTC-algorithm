@@ -1,31 +1,24 @@
+# Python prototype algorithms for computing current time/date
+# based on a set time/date and elapsed time.
+# Used for unit-testing of algorithms for: 
+#     https://github.com/bsiever/microbit-pxt-softclock
 
 
-
-# Simulator input.runningTime() == Time in ms
 # Device:  Use C code based on us_ticker_read()/1000 (and handle roll overs)
-
-# Functions for testing time computations
+#    Note:   us_ticker_read() had a atomicity error/race condition.
 
 # Stored:
 #   Start time reference (for delta)
-#   HH:MM.s at start 
-#   Day of Year at start 
+#      Actual time and CPU time since start of CPU
+#      (I.e., CPU time and the actual real time at that moment)
 #   Year at start 
 
+from math import floor   # For weekday computation
 
-# Alternate:
-#   Store year, time since beginning, and timestamp
-
-#   currentTimeFromBeginingOfStartYear = (now-timestamp) + timeSinceBeginning
-#  Reduces storage a tiny bit I guess (and cal?)
-
-
-
-# Cummulative days of year at the start of each month (non-leap years)
-#  (Prefix sum)
-# Padded for 1-based indices
+# Cumulative days of year at the start of each month (non-leap years)
+# (a prefix sum)
+# Padded for 1-based indices (month 1=Jan)
 cdoy = [0, 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365]
-
 
 def isLeapYear(y):
     return (y%400==0 or (y%100!=0 and y%4==0))
@@ -53,8 +46,8 @@ def dayOfYearToMonthAndDay(d, y):
 
 def secondsSoFarForYear(d,m,y, hh, mm, ss):
     # ((((Complete Days * 24hrs/day)+complete hours)*60min/hr)+complete minutes)* 60s/min + complete seconds
+    # Yay Horner's Rule!:
     return (((dateToDayOfYear(m,d,y)-1)*24 + hh)*60+mm)*60+ss
-
 
 # Start Point has
 year = 0
@@ -84,10 +77,8 @@ def timeFor(cpuTime):
     leap = isLeapYear(y)
     while (not leap and sSinceStartOfYear>365*24*60*60) or (sSinceStartOfYear>366*24*60*60):
         if leap:
-            print("Advancing Leap Year")
             sSinceStartOfYear -= 366*24*60*60 
         else:
-            print("Advancing NORMAL Year")
             sSinceStartOfYear -= 365*24*60*60 
         y += 1
         leap = isLeapYear(y)
@@ -128,156 +119,17 @@ def setTime(h,m, s, cpuTime):
     cpuTimeAtSetpoint = cpuTime
     timeToSetpoint = secondsSoFarForYear(dd, mm, yy, h, m, s)
 
-def dayOfWeek(m, d, y):
-    # f = k + [(13*m-1)/5] + D + [D/4] + [C/4] - 2*C.
-    # Zeller's Rule from http://mathforum.org/dr.math/faq/faq.calendar.html
-    D = y%100
-    C = y//100 
-    # Use integer division
-    return d + (13*m-1)//5 + D + D//4 + C//4 - 2*C
-
+def dayOfWeek(doy, y):
+    # Gauss's Algorithm for Jan 1: https://en.wikipedia.org/wiki/Determination_of_the_day_of_the_week
+    # R(1+5R(A-1,4)+4R(A-1,100)+6R(A-1,400),7)    
+    jan1 = ((1+5*( (y-1) % 4)+4*( (y-1) % 100)+6* ( (y-1) % 400)) % 7) 
+    jan1 += 6  # Shift range:  Gauss used 0=Sunday, we'll use 0=Monday
+    dow = ( (doy-1) + jan1 ) % 7
+    return dow
 
 def advanceTime(amount, unit):
     units = [1, 60*1, 60*60*1, 24*60*60*1]
     global year, cpuTimeAtSetpoint, timeToSetpoint
     cpuTimeAtSetpoint -= amount*units[unit]
-
-
-
-# def cpuTimeToDate(cpuTime):
-#     totalTimeFromYear = timeToSetpoint + (cpuTime - cpuSetpoint)
-#     y = year
-#     years = True
-#     while years:
-#         leap = isLeapYear(y)
-#         if (not leap and totalTimeFromYear>364*24*60*60) or (totalTimeFromYear>365*24*60*60):
-#             totalTimeFromYear -= 364*24*60*60 if not leap else 365*24*60*60
-#             y += 1
-#         else: 
-#             years = False
-#     dayOfYear = totalTimeFromYear//(24*60*60)
-#     timeOfDay = totalTimeFromYear%(24*60*60)
-#     (m,d) = dayOfYearToMonthAndDay(dayOfYear, year)
-#     hh = timeOfDay//(60*60)
-#     timeOfDay = timeOfDay%(60*60)
-#     mm = timeOfDay//(60)
-#     ss = timeOfDay % 60
-#     return (y,m,d, dayOfYear, hh, mm, ss)
-
-# def timeAndDate(cpuTime):
-#     nowFromStartOfYear = timeToSetpoint + (cpuTime - cpuSetpoint)
-#     ss = nowFromStartOfYear%60
-#     nowFromStartOfYear /= 60
-#     mm = nowFromStartOfYear%60
-#     nowFromStartOfYear /= 60
-#     hh = nowFromStartOfYear%24
-#     yd = nowFromStartOfYear / 24
-
-#     # Count years until less than 1
-#     ty = year 
-#     while isLeapYear(ty) and yd>365 or yd>364:
-#         yd -= 365 if isLeapYear(ty) else 364 
-#         ty += 1
-
-
-#     pass 
-
-
-
-
-# def timeFromStartYear(now):
-#     nowFromStartOfYear = timeToSetpoint + (now-cpuSetpoint)
-#     ss = nowFromStartOfYear%60
-#     nowFromStartOfYear /= 60
-#     mm = nowFromStartOfYear%60
-#     nowFromStartOfYear /= 60
-#     hh = nowFromStartOfYear%24
-#     d = nowFromStartOfYear / 24
-#     return (d, hh, mm, ss)
-
-# def setDate(y,m,d):
-#     currentCPUTime = now()
-#     # Get current time of day and recompute 
-#     (d, hh, mm, ss) = timeFromStartYear(currentCPUTime)
-#     # Update all state variables using this time
-#     year = y
-#     timeToSetpoint =  secondsSoFarForYear(d,m,y, hh, mm, ss)
-#     cpuSetpoint = currentCPUTime
-
-# def setTime(hh,mm,ss):
-#     currentCPUTime = now()
-#     # Get current day since running and recompute
-#     (d, _, _, _) = timeFromStartYear(currentCPUTime)
-#     # Find month and day of month
-#     (m, d) = dayOfYearToMonthAndDay(d, year)
-#     # Update all state variables using this time
-#     timeToSetpoint =  secondsSoFarForYear(d,m,year, hh, mm, ss)
-#     cpuSetpoint = currentCPUTime
-
-
-# # Store:
-# #    Year 
-# #    time in seconds from beginning of year to time setpoint cpu time
-# #    setpoint cpu time
-
-# # Current time from start of year = timeAtSetpoint + (now-setpoint)   
-# #     Remove seconds, minutes, hours, days, years 
-
-
-
-
-# # All time tracked in ms count
-
-# # State Variables
-# #
-# #    StartTimeMark
-# #    Beginning year
-# #    
-# # 
-# #
-# #
-
-
-# def newTime(d,m, y, h, min, s, ds):
-#     # Take an original m/d/y hh:mm:ss and add on a ds to compute a new 
-#     # d/m/y hh:mm:ss
-#     sTot = s+ds
-#     newSS = sTot%60
-#     om = sTot//60   # Overflow into minutes
-
-#     mTot = min+om
-#     newMM = mTot%60
-#     oh = mTot//60   # Overflow into hours 
-
-#     hTot = h+oh 
-#     newH = hTot%24 
-#     od = hTot//24
-
-#     # Days to start date from Jan 1 of start year
-#     dFsY = dateToDayOfYear(m, d, y) 
-#     tD = dFsY+od  # Total elapsed days 
-
-#     # Advance years / decrease days (Clunky, but probably only a few years...)
-#     newYear = y 
-#     while tD > 365 if isLeapYear(newYear) else 364:
-#         td -= 365 if isLeapYear(newYear) else 364
-#         newYear += 1
-#     (newM, newD) = dayOfYearToMonthAndDay(tD, newYear)
-
-#     return (newM, newD, newYear, newH, newMM, newSS)
-
-
-# def dayOfWeek(m, d, y):
-#     # f = k + [(13*m-1)/5] + D + [D/4] + [C/4] - 2*C.
-#     # Zeller's Rule from http://mathforum.org/dr.math/faq/faq.calendar.html
-#     D = y%100
-#     C = y/100 
-#     # Use integer division
-#     return d + (13*m-1)//5 + D + D//4 + C//4 - 2*C
-
-#     # How....
-# # Compute new time via overflows of sec, min, hr
-# # Use # of days to add to initial period
-# # Remove years....somehow....loop???
 
 

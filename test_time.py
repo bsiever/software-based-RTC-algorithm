@@ -172,7 +172,7 @@ def test_randomSetLaters():
         scpu = randint(0,600)
         later = randint(1, 25*365*24*60*60)
 
-        print(f"Start: {smm}/{sdd}/{syy} {sh}:{sm}.{ss};  {scpu} {later}")
+        # print(f"Start: {smm}/{sdd}/{syy} {sh}:{sm}.{ss};  {scpu} {later}")
         setTime(sh,sm,ss, scpu)
         setDate(smm,sdd,syy, scpu )
 
@@ -181,14 +181,17 @@ def test_randomSetLaters():
         delta = timedelta(seconds=later)
         n = d+delta
         (mm, dd, yy, h, m, s, doy) = timeFor(scpu+later)
-        print(f"End: {mm}/{dd}/{yy} {h}:{m}.{s}  doy: {doy}")
-        print(f"Expected: {n.month}/{n.day}/{n.year} {n.hour}:{n.minute}.{n.second}")
+        # print(f"End: {mm}/{dd}/{yy} {h}:{m}.{s}  doy: {doy}")
+        # print(f"Expected: {n.month}/{n.day}/{n.year} {n.hour}:{n.minute}.{n.second}")
         assert n.month == mm
         assert n.day == dd
         assert n.year == yy 
         assert n.hour == h
         assert n.minute == m
         assert n.second == s
-
+        # Check weekday conversion too
+        # Python: monday=0
+        wd = dayOfWeek(doy, yy)
+        assert n.weekday() == wd
 
 
